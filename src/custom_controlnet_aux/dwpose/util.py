@@ -79,14 +79,13 @@ def is_normalized(keypoints: List[Optional[Keypoint]]) -> bool:
     return all(point_normalized)
 
     
-def draw_bodypose(canvas: np.ndarray, keypoints: List[Keypoint], xinsr_stick_scaling: bool = False) -> np.ndarray:
+def draw_bodypose(canvas: np.ndarray, keypoints: List[Keypoint]) -> np.ndarray:
     """
     Draw keypoints and limbs representing body pose on a given canvas.
 
     Args:
         canvas (np.ndarray): A 3D numpy array representing the canvas (image) on which to draw the body pose.
         keypoints (List[Keypoint]): A list of Keypoint objects representing the body keypoints to be drawn.
-        xinsr_stick_scaling (bool): Whether or not scaling stick width for xinsr ControlNet
 
     Returns:
         np.ndarray: A 3D numpy array representing the modified canvas with the drawn body pose.
@@ -94,20 +93,25 @@ def draw_bodypose(canvas: np.ndarray, keypoints: List[Keypoint], xinsr_stick_sca
     Note:
         The function expects the x and y coordinates of the keypoints to be normalized between 0 and 1.
     """
-    if not is_normalized(keypoints):
-        H, W = 1.0, 1.0
-    else:
-        H, W, _ = canvas.shape
+    H, W, C = canvas.shape
 
-    CH, CW, _ = canvas.shape
+    
+    if max(W, H) < 500:
+        ratio = 1.0
+    elif max(W, H) >= 500 and max(W, H) < 1000:
+        ratio = 2.0
+    elif max(W, H) >= 1000 and max(W, H) < 2000:
+        ratio = 3.0
+    elif max(W, H) >= 2000 and max(W, H) < 3000:
+        ratio = 4.0
+    elif max(W, H) >= 3000 and max(W, H) < 4000:
+        ratio = 5.0
+    elif max(W, H) >= 4000 and max(W, H) < 5000:
+        ratio = 6.0
+    else:
+        ratio = 7.0
+
     stickwidth = 4
-
-    # Ref: https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0
-    max_side = max(CW, CH)
-    if xinsr_stick_scaling:
-        stick_scale = 1 if max_side < 500 else min(2 + (max_side // 1000), 7)
-    else:
-        stick_scale = 1
 
     limbSeq = [
         [2, 3], [2, 6], [3, 4], [4, 5], 
@@ -134,7 +138,7 @@ def draw_bodypose(canvas: np.ndarray, keypoints: List[Keypoint], xinsr_stick_sca
         mY = np.mean(Y)
         length = ((X[0] - X[1]) ** 2 + (Y[0] - Y[1]) ** 2) ** 0.5
         angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
-        polygon = cv2.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stickwidth*stick_scale), int(angle), 0, 360, 1)
+        polygon = cv2.ellipse2Poly((int(mY), int(mX)), (int(length / 2), int(stickwidth * ratio)), int(angle), 0, 360, 1)
         cv2.fillConvexPoly(canvas, polygon, [int(float(c) * 0.6) for c in color])
 
     for keypoint, color in zip(keypoints, colors):
@@ -144,7 +148,7 @@ def draw_bodypose(canvas: np.ndarray, keypoints: List[Keypoint], xinsr_stick_sca
         x, y = keypoint.x, keypoint.y
         x = int(x * W)
         y = int(y * H)
-        cv2.circle(canvas, (int(x), int(y)), 4, color, thickness=-1)
+        cv2.circle(canvas, (int(x), int(y)), int(4 * ratio), color, thickness=-1)
 
     return canvas
 
